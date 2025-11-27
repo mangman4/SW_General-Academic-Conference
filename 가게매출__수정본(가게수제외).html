@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DID Pro: 집중 분석기 (±2 Years)</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: 'Pretendard', sans-serif; background-color: #f8fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        input[type="color"] { -webkit-appearance: none; border: none; width: 24px; height: 24px; cursor: pointer; border-radius: 50%; padding: 0; overflow: hidden; }
+        
+        .tab-btn.active { background-color: #4f46e5; color: white; border-color: #4f46e5; }
+        .tab-btn.inactive { background-color: white; color: #64748b; border-color: #e2e8f0; }
+        .tab-btn.inactive:hover { background-color: #f8fafc; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 text-white p-2 rounded-lg">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <h1 class="text-xl font-bold text-slate-800">DID Pro: 집중 분석기 (±2년)</h1>
+            </div>
+
+            <div class="flex gap-3 items-center">
+                <div class="flex gap-2 mr-4">
+                    <button onclick="switchTab('did')" id="tab-did" class="tab-btn active px-4 py-2 rounded-lg text-sm font-bold border transition flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group"></i> DID 시계열
+                    </button>
+                    <button onclick="switchTab('trajectory')" id="tab-trajectory" class="tab-btn inactive px-4 py-2 rounded-lg text-sm font-bold border transition flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-trend-up"></i> 매출-가게수 궤적
+                    </button>
+                </div>
+
+                <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2">
+                    <i class="fa-solid fa-upload"></i> CSV 업로드
+                    <input type="file" id="csvFile" accept=".csv" class="hidden">
+                </label>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-[1600px] mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <div class="lg:col-span-3 space-y-5">
+            <div class="card p-4">
+                <h3 class="font-bold text-xs text-slate-500 uppercase mb-2">1. 분석 업종</h3>
+                <select id="industrySelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-indigo-500">
+                    <option value="">파일을 업로드하세요</option>
+                </select>
+                <p class="text-[11px] text-slate-400 mt-2">* '전체 업종 합계' 선택 시 노선 전체 규모로 분석합니다.</p>
+            </div>
+
+            <div id="control-did" class="card p-4">
+                <h3 class="font-bold text-xs text-slate-500 uppercase mb-2">2. DID 분석 설정</h3>
+                
+                <div class="mb-4">
+                    <label class="block text-xs text-slate-400 mb-1">분석 기간 (Window)</label>
+                    <select id="timeWindowSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2.5 font-medium" onchange="updateDashboard()">
+                        <option value="4" selected>개통 전후 4분기 (1년)</option>
+                        <option value="6">개통 전후 6분기 (1.5년)</option>
+                        <option value="8">개통 전후 8분기 (2년)</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs text-slate-400 mb-2">표출 거리 (Distance)</label>
+                    <div class="flex flex-wrap gap-3">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" class="dist-check w-4 h-4 text-indigo-600 rounded" value="500" checked onchange="updateDashboard()">
+                            <span class="text-xs font-bold text-slate-700">500m (실선)</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" class="dist-check w-4 h-4 text-indigo-600 rounded" value="2000" checked onchange="updateDashboard()">
+                            <span class="text-xs font-bold text-slate-700">2000m (점선)</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" class="dist-check w-4 h-4 text-indigo-600 rounded" value="Combined" onchange="updateDashboard()">
+                            <span class="text-xs text-slate-500">통합 (굵게)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200 mb-4">
+                    <button onclick="setDIDMode('sales')" id="btn-sales" class="mode-btn flex-1 px-2 py-1.5 rounded text-xs font-bold transition text-indigo-600 bg-white shadow">매출</button>
+                    <button onclick="setDIDMode('stores')" id="btn-stores" class="mode-btn flex-1 px-2 py-1.5 rounded text-xs font-bold transition text-slate-500">가게수</button>
+                    <button onclick="setDIDMode('perStore')" id="btn-perStore" class="mode-btn flex-1 px-2 py-1.5 rounded text-xs font-bold transition text-slate-500">점포당</button>
+                </div>
+                <div class="pt-4 border-t border-slate-100">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">최소 표본 필터 (가게수)</label>
+                    <div class="relative">
+                        <input type="number" id="minStoreInput" value="0" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm text-right pr-8" onchange="updateDashboard()">
+                        <span class="absolute right-3 top-2 text-xs text-slate-400">개</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="control-trajectory" class="card p-4 hidden">
+                <h3 class="font-bold text-xs text-slate-500 uppercase mb-2">2. 궤적 그래프 설정</h3>
+                
+                <div class="mb-4">
+                    <label class="block text-xs text-slate-400 mb-1">거리 범위 (Distance)</label>
+                    <select id="trajDistSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2.5 font-bold focus:ring-2 focus:ring-indigo-500" onchange="updateDashboard()">
+                        <option value="Combined" selected>통합 (500m + 2000m)</option>
+                        <option value="500">역세권 (500m)</option>
+                        <option value="2000">배후지 (2000m)</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs text-slate-400 mb-1">시간 단위 (Time Unit)</label>
+                    <select id="timeUnitSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg p-2.5 font-bold" onchange="updateDashboard()">
+                        <option value="quarter">분기 (Quarter)</option>
+                        <option value="half" selected>반기 (Half-Year)</option>
+                        <option value="year">연도 (Year)</option>
+                    </select>
+                    <p class="text-[10px] text-indigo-500 mt-1 pl-1">
+                        * 반기/연도 선택 시 불완전 기간(23년 3Q) 자동 보정
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">궤적 선 굵기</label>
+                        <input type="number" id="lineWidthInput" value="3" min="1" max="10" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateDashboard()">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">선 스타일</label>
+                        <select id="lineStyleSelect" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateDashboard()">
+                            <option value="solid">실선</option>
+                            <option value="dashed">점선 (Dash)</option>
+                            <option value="dotted">점선 (Dot)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-4 pt-3 border-t border-slate-100">
+                     <label class="block text-xs font-bold text-slate-500 uppercase mb-2">개통 기준선 & 마커</label>
+                     <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded border">
+                        <input type="checkbox" id="showOpeningLines" class="w-4 h-4 text-indigo-600 rounded" onchange="updateDashboard()">
+                        <span class="text-xs font-bold text-slate-700">기준선 보기</span>
+                        <div class="flex-1 text-right flex items-center justify-end gap-1">
+                             <span class="text-[10px] text-slate-400">굵기:</span>
+                             <input type="number" id="refLineWidthInput" value="1" min="1" max="5" class="w-10 text-center text-xs border rounded p-1" onchange="updateDashboard()">
+                        </div>
+                     </div>
+                     <div class="flex items-center justify-between">
+                         <span class="text-xs text-slate-600 font-bold">별(★) 크기</span>
+                         <input type="number" id="starSizeInput" value="14" min="4" max="25" class="w-16 bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-sm text-right font-bold" onchange="updateDashboard()">
+                     </div>
+                </div>
+
+                <div class="space-y-3 pt-3 border-t border-slate-100">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-500">개통 전 (Pre) 색상</span>
+                        <input type="color" id="colorPre" value="#cbd5e1" onchange="updateDashboard()">
+                    </div>
+                    <div class="text-[11px] text-slate-400 mt-2">
+                        * 분석 범위가 <strong>개통 전후 2년</strong>으로 자동 제한됩니다.
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-4 flex flex-col h-[500px]">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-xs text-slate-500 uppercase">3. 노선 선택</h3>
+                    <button onclick="toggleAll(true)" class="text-[10px] bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">전체선택</button>
+                </div>
+                <div id="granularCheckboxes" class="flex-1 overflow-y-auto custom-scroll space-y-2 pr-1">
+                    <div class="text-xs text-slate-400 text-center py-20">CSV 파일을 업로드하세요.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-9 space-y-6">
+            
+            <div id="view-did" class="block space-y-6">
+                <div class="card p-6 min-h-[600px] flex flex-col relative">
+                    <div class="flex justify-between items-end mb-4 border-b border-slate-100 pb-3">
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2" id="chartTitleDID">
+                                대조군 보정 DID 변화 추이
+                            </h2>
+                            <p class="text-sm text-slate-500 mt-1">개통 시점(t=0) 기준 순수 변화량 (분기별)</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded font-bold">t=0: 개통 시점</span>
+                        </div>
+                    </div>
+                    <div class="flex-grow w-full h-full relative">
+                        <canvas id="didChart"></canvas>
+                    </div>
+                </div>
+                <div class="card p-6">
+                     <h3 class="font-bold text-slate-800 mb-4">개통 전후 성과 비교</h3>
+                     <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-slate-600">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-50 border-b">
+                                <tr>
+                                    <th class="px-4 py-3">노선명</th>
+                                    <th class="px-4 py-3 text-center">거리</th>
+                                    <th class="px-4 py-3 text-right">개통 전 (Pre)</th>
+                                    <th class="px-4 py-3 text-right">개통 후 (Post)</th>
+                                    <th class="px-4 py-3 text-right">변화량</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analysisTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-trajectory" class="hidden space-y-6">
+                <div class="card p-6 min-h-[700px] flex flex-col relative">
+                    <div class="flex justify-between items-end mb-4 border-b border-slate-100 pb-3">
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                매출-가게수 성장 궤적 (집중 분석)
+                            </h2>
+                            <p class="text-sm text-slate-500 mt-1">
+                                <strong>개통 전후 2년(±8분기)</strong> 데이터만 추출하여 변화를 추적합니다.
+                            </p>
+                        </div>
+                        <div class="flex gap-2 items-center">
+                            <div class="flex items-center gap-1 text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded font-bold border border-slate-200">
+                                <i class="fa-solid fa-circle"></i> Start(-2yr)
+                            </div>
+                            <div class="flex items-center gap-1 text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded font-bold border border-slate-200">
+                                <i class="fa-solid fa-star"></i> 개통(0)
+                            </div>
+                            <div class="flex items-center gap-1 text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded font-bold border border-slate-200">
+                                <i class="fa-solid fa-play"></i> End(+2yr)
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-grow w-full h-full relative">
+                        <canvas id="trajChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        Chart.register(ChartDataLabels);
+
+        const OPENING_DATES = {
+            '진접선': '2022-1', '하남선': '2020-3', '김포골드라인': '2019-3',
+            '안산선': '2018-2', '서해선': '2018-2'
+        };
+
+        const DEFAULT_COLORS = {
+            '김포골드라인': '#2563eb', 
+            '하남선': '#9333ea',     
+            '진접선': '#16a34a',     
+            '안산선': '#dc2626',     
+            '서해선': '#ea580c',     
+            'DEFAULT': '#475569'
+        };
+
+        let rawData = [];
+        let currentTab = 'did'; 
+        let currentDIDMode = 'sales'; 
+        let charts = { did: null, traj: null };
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('view-did').classList.toggle('hidden', tab !== 'did');
+            document.getElementById('view-trajectory').classList.toggle('hidden', tab !== 'trajectory');
+            document.getElementById('control-did').classList.toggle('hidden', tab !== 'did');
+            document.getElementById('control-trajectory').classList.toggle('hidden', tab !== 'trajectory');
+            
+            const baseClass = "tab-btn px-4 py-2 rounded-lg text-sm font-bold border transition flex items-center gap-2";
+            document.getElementById('tab-did').className = tab === 'did' ? `${baseClass} active` : `${baseClass} inactive`;
+            document.getElementById('tab-trajectory').className = tab === 'trajectory' ? `${baseClass} active` : `${baseClass} inactive`;
+
+            updateDashboard();
+        }
+
+        function setDIDMode(mode) {
+            currentDIDMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.className = "mode-btn flex-1 px-2 py-1.5 rounded text-xs font-bold transition text-slate-500 hover:bg-white/50");
+            document.getElementById(`btn-${mode}`).className = "mode-btn flex-1 px-2 py-1.5 rounded text-xs font-bold transition text-indigo-600 bg-white shadow";
+            
+            const titleMap = { 'sales': '총 매출액', 'stores': '가게수', 'perStore': '점포당 매출' };
+            document.getElementById('chartTitleDID').innerText = `${titleMap[mode]} DID 변화 추이`;
+            
+            if(currentTab === 'did') updateDashboard();
+        }
+
+        document.getElementById('csvFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) { parseCSV(evt.target.result); };
+            reader.readAsText(file, 'EUC-KR'); 
+        });
+
+        function parseCSV(text) {
+            const rows = text.trim().split('\n').map(r => r.split(','));
+            const headers = rows[0].map(h => h.trim());
+            
+            let tempData = rows.slice(1).map(r => {
+                let obj = {};
+                headers.forEach((h, i) => obj[h] = r[i] ? r[i].trim() : '');
+                if (obj['노선명'] && obj['노선명'].includes('하남선')) obj['노선명'] = '하남선';
+                if(obj['거리_필터']) obj['거리_필터'] = obj['거리_필터'].replace('m', '').trim(); 
+
+                obj.sales = parseFloat(obj['매출금액']) || 0;
+                obj.stores = parseFloat(obj['가게수']) || 0;
+                obj.year = parseInt(obj['기준연도'].split('.')[0]);
+                obj.qtr = parseInt(obj['기준분기'].split('.')[0]);
+                return obj;
+            });
+
+            rawData = aggregateData(tempData);
+            initFilters();
+            updateDashboard();
+        }
+
+        function aggregateData(data) {
+            const map = new Map();
+            const combinedMap = new Map();
+
+            data.forEach(item => {
+                const key = `${item.year}-${item.qtr}-${item['노선명']}-${item['거리_필터']}-${item['대분류']}`;
+                if (map.has(key)) {
+                    const existing = map.get(key);
+                    existing.sales += item.sales;
+                    existing.stores += item.stores;
+                } else {
+                    map.set(key, {...item});
+                }
+                
+                if(item['거리_필터'] !== 'Control') {
+                    const cKey = `${item.year}-${item.qtr}-${item['노선명']}-Combined-${item['대분류']}`;
+                    if(combinedMap.has(cKey)) {
+                        const existing = combinedMap.get(cKey);
+                        existing.sales += item.sales;
+                        existing.stores += item.stores;
+                    } else {
+                        combinedMap.set(cKey, {...item, '거리_필터': 'Combined'});
+                    }
+                }
+            });
+
+            const result = [...map.values(), ...combinedMap.values()];
+            result.forEach(d => {
+                d.perStore = (d.stores > 0) ? d.sales / d.stores : 0;
+            });
+            return result;
+        }
+
+        function initFilters() {
+            const industries = [...new Set(rawData.map(d => d['대분류']))].sort();
+            const indSel = document.getElementById('industrySelect');
+            
+            let options = `<option value="ALL" class="font-bold">🏁 전체 업종 합계 (Total)</option>`;
+            options += industries.map(i => `<option value="${i}">${i}</option>`).join('');
+            
+            indSel.innerHTML = options;
+            indSel.value = "ALL"; 
+
+            const lines = [...new Set(rawData.filter(d => d['거리_필터'] !== 'Control').map(d => d['노선명']))].sort();
+            const container = document.getElementById('granularCheckboxes');
+            
+            container.innerHTML = lines.map(line => {
+                const color = DEFAULT_COLORS[line] || DEFAULT_COLORS.DEFAULT;
+                return `
+                <div class="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-200">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" class="line-check w-4 h-4 text-indigo-600 rounded" value="${line}" checked onchange="updateDashboard()">
+                        <span class="text-sm font-bold text-slate-700">${line}</span>
+                    </label>
+                    <div class="w-3 h-3 rounded-full" style="background-color: ${color}"></div>
+                </div>`;
+            }).join('');
+            indSel.addEventListener('change', updateDashboard);
+        }
+
+        function toggleAll(checked) {
+            document.querySelectorAll('.line-check').forEach(cb => cb.checked = checked);
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            if(rawData.length === 0) return;
+            if(currentTab === 'did') updateDIDChart();
+            else updateTrajectoryChart();
+        }
+
+        // 1. DID Chart
+        function updateDIDChart() {
+            const ind = document.getElementById('industrySelect').value;
+            const windowSize = parseInt(document.getElementById('timeWindowSelect').value);
+            const minStores = parseInt(document.getElementById('minStoreInput').value) || 0;
+            const selectedLines = Array.from(document.querySelectorAll('.line-check:checked')).map(cb => cb.value);
+            const selectedDists = Array.from(document.querySelectorAll('.dist-check:checked')).map(cb => cb.value);
+
+            const datasets = [];
+            const tableData = [];
+            
+            let ctrlData = rawData.filter(d => d['거리_필터'] === 'Control');
+            if(ind !== 'ALL') ctrlData = ctrlData.filter(d => d['대분류'] === ind);
+            
+            const ctrlMap = {};
+            ctrlData.forEach(d => {
+                const key = `${d.year}-${d.qtr}`;
+                if(!ctrlMap[key]) ctrlMap[key] = { val: 0, cnt: 0 };
+                ctrlMap[key].val += d[currentDIDMode]; 
+                ctrlMap[key].cnt++; 
+            });
+            
+            selectedLines.forEach(line => {
+                if(!OPENING_DATES[line]) return;
+                const [oYear, oQtr] = OPENING_DATES[line].split('-').map(Number);
+                const color = DEFAULT_COLORS[line] || DEFAULT_COLORS.DEFAULT;
+                
+                selectedDists.forEach(distType => {
+                    let lineData = rawData.filter(d => d['노선명'] === line && d['거리_필터'] === distType);
+                    if(ind !== 'ALL') lineData = lineData.filter(d => d['대분류'] === ind);
+
+                    const timeMap = new Map();
+                    lineData.forEach(d => {
+                        const key = `${d.year}-${d.qtr}`;
+                        if(!timeMap.has(key)) timeMap.set(key, { ...d, sales:0, stores:0 });
+                        const obj = timeMap.get(key);
+                        obj.sales += d.sales;
+                        obj.stores += d.stores;
+                    });
+                    
+                    let processedLineData = Array.from(timeMap.values()).map(d => {
+                        d.perStore = (d.stores > 0) ? d.sales / d.stores : 0;
+                        return d;
+                    });
+
+                    const baseItem = processedLineData.find(d => d.year === oYear && d.qtr === oQtr);
+                    const baseCtrlWrap = ctrlMap[`${oYear}-${oQtr}`];
+                    const baseCtrl = baseCtrlWrap ? baseCtrlWrap.val : null;
+
+                    if(!baseItem || !baseCtrl || baseItem.stores < minStores) return;
+
+                    const series = { x: [], y: [] };
+                    let preSum=0, preCnt=0, postSum=0, postCnt=0;
+
+                    processedLineData.forEach(d => {
+                        if(d.stores < minStores) return;
+                        const t = (d.year - oYear)*4 + (d.qtr - oQtr);
+                        if (t < -8 || t > 8) return;
+                        
+                        const currCtrlWrap = ctrlMap[`${d.year}-${d.qtr}`];
+                        if(!currCtrlWrap) return;
+                        const currCtrl = currCtrlWrap.val;
+
+                        const didVal = 100 + ((d[currentDIDMode]/baseItem[currentDIDMode]*100) - (currCtrl/baseCtrl*100));
+                        series.x.push(t);
+                        series.y.push(didVal);
+
+                        if (t >= -windowSize && t <= -1) { preSum += didVal; preCnt++; }
+                        if (t >= 1 && t <= windowSize) { postSum += didVal; postCnt++; }
+                    });
+
+                    const combined = series.x.map((x, i) => ({x, y: series.y[i]})).sort((a,b)=>a.x-b.x);
+                    const aligned = Array(17).fill(null);
+                    combined.forEach(pt => { if(pt.x + 8 >= 0 && pt.x + 8 < 17) aligned[pt.x+8] = pt.y; });
+
+                    let borderDash = [];
+                    let borderWidth = 2;
+                    let labelSuffix = '';
+
+                    if (distType === '2000') { borderDash = [4, 4]; labelSuffix = ' (2000m)'; } 
+                    else if (distType === 'Combined') { borderWidth = 3; labelSuffix = ' (통합)'; } 
+                    else { labelSuffix = ' (500m)'; }
+
+                    datasets.push({
+                        label: line + labelSuffix,
+                        data: aligned,
+                        borderColor: color,
+                        backgroundColor: color,
+                        borderDash: borderDash,
+                        borderWidth: borderWidth,
+                        tension: 0.3, spanGaps: true,
+                        datalabels: { display: false } 
+                    });
+
+                    if(preCnt>0 && postCnt>0) {
+                        tableData.push({ line, dist: distType === 'Combined' ? '통합' : distType + 'm', pre: preSum/preCnt, post: postSum/postCnt, color });
+                    }
+                });
+            });
+
+            const ctx = document.getElementById('didChart').getContext('2d');
+            if(charts.did) charts.did.destroy();
+
+            charts.did = new Chart(ctx, {
+                type: 'line',
+                data: { labels: Array.from({length:17}, (_,i)=>i-8), datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        annotation: {
+                            annotations: {
+                                line0: { type: 'line', xMin: 8, xMax: 8, borderColor: '#10b981', borderWidth: 2 },
+                                line100: { type: 'line', yMin: 100, yMax: 100, borderColor: '#cbd5e1', borderDash:[4,4] }
+                            }
+                        }
+                    },
+                    scales: { y: { grid: {borderDash:[2,2]} }, x: { grid: {display:false} } }
+                }
+            });
+            renderDIDTable(tableData);
+        }
+        
+        function renderDIDTable(data) {
+            const tbody = document.getElementById('analysisTableBody');
+            tbody.innerHTML = '';
+            if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">데이터 없음</td></tr>'; return; }
+            data.sort((a,b) => (b.post-b.pre) - (a.post-a.pre)).forEach(row => {
+                const diff = row.post - row.pre;
+                let badgeClass = "bg-slate-100 text-slate-600";
+                if(row.dist === '500m') badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                if(row.dist === '2000m') badgeClass = "bg-orange-50 text-orange-700 border-orange-200";
+                if(row.dist === '통합') badgeClass = "bg-slate-800 text-white border-slate-800";
+
+                tbody.innerHTML += `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="px-4 py-3 border-l-4 font-bold" style="border-left-color:${row.color}">${row.line}</td>
+                    <td class="px-4 py-3 text-center"><span class="${badgeClass} px-2 py-1 rounded text-xs font-bold border">${row.dist}</span></td>
+                    <td class="px-4 py-3 text-right">${row.pre.toFixed(1)}</td>
+                    <td class="px-4 py-3 text-right">${row.post.toFixed(1)}</td>
+                    <td class="px-4 py-3 text-right ${diff>=0?'text-red-600':'text-blue-600'} font-bold">${diff>0?'+':''}${diff.toFixed(1)}</td>
+                </tr>`;
+            });
+        }
+
+        // 2. Trajectory Chart
+        function updateTrajectoryChart() {
+            const ind = document.getElementById('industrySelect').value;
+            const timeUnit = document.getElementById('timeUnitSelect').value; 
+            const showRef = document.getElementById('showOpeningLines').checked;
+            const lineWidth = parseInt(document.getElementById('lineWidthInput').value) || 2;
+            const lineStyleVal = document.getElementById('lineStyleSelect').value;
+            const refLineWidth = parseInt(document.getElementById('refLineWidthInput').value) || 1;
+            const starSize = parseInt(document.getElementById('starSizeInput').value) || 10;
+            const distFilter = document.getElementById('trajDistSelect').value; 
+
+            let borderDashArr = [];
+            if(lineStyleVal === 'dashed') borderDashArr = [6, 6];
+            if(lineStyleVal === 'dotted') borderDashArr = [2, 3];
+
+            const selectedLines = Array.from(document.querySelectorAll('.line-check:checked')).map(cb => cb.value);
+            const preColor = document.getElementById('colorPre').value;
+
+            const datasets = [];
+            const annotations = {};
+
+            selectedLines.forEach((line, lineIdx) => {
+                if(!OPENING_DATES[line]) return;
+                const [oYear, oQtr] = OPENING_DATES[line].split('-').map(Number);
+                const lineColor = DEFAULT_COLORS[line] || DEFAULT_COLORS.DEFAULT;
+
+                let rawLineData = rawData.filter(d => d['노선명'] === line && d['거리_필터'] === distFilter);
+                if(ind !== 'ALL') {
+                    rawLineData = rawLineData.filter(d => d['대분류'] === ind);
+                }
+
+                if(rawLineData.length === 0) return;
+
+                const aggMap = new Map();
+                rawLineData.forEach(d => {
+                    // [NEW] Filter ONLY ±2 years (8 quarters)
+                    const t_raw = (d.year - oYear) * 4 + (d.qtr - oQtr);
+                    if (Math.abs(t_raw) > 8) return; // Skip out of range
+
+                    let key, timeLabel, sortKey;
+                    if(timeUnit === 'year') {
+                        key = `${d.year}`; timeLabel = `${d.year}년`; sortKey = d.year;
+                    } else if(timeUnit === 'half') {
+                        const half = d.qtr <= 2 ? 1 : 2; key = `${d.year}-H${half}`; timeLabel = `${d.year}.H${half}`; sortKey = d.year * 10 + half;
+                    } else { 
+                        key = `${d.year}-Q${d.qtr}`; timeLabel = `${d.year}.Q${d.qtr}`; sortKey = d.year * 10 + d.qtr;
+                    }
+
+                    if(!aggMap.has(key)) {
+                        aggMap.set(key, { key, sortKey, label: timeLabel, sales: 0, stores: 0, count: 0, year: d.year, qtr: d.qtr, rawItems: [] });
+                    }
+                    const group = aggMap.get(key);
+                    group.sales += d.sales;
+                    group.stores += d.stores;
+                    group.count += 1; 
+                    group.rawItems.push(d);
+                });
+
+                const aggData = Array.from(aggMap.values()).map(g => {
+                    const uniqueQtrs = new Set(g.rawItems.map(r => `${r.year}-${r.qtr}`)).size;
+                    let expectedQtrs = 1;
+                    if(timeUnit === 'year') expectedQtrs = 4;
+                    if(timeUnit === 'half') expectedQtrs = 2;
+
+                    let adjustedSales = g.sales;
+                    let isProjected = false;
+                    if (uniqueQtrs < expectedQtrs && uniqueQtrs > 0) {
+                        adjustedSales = g.sales * (expectedQtrs / uniqueQtrs);
+                        isProjected = true;
+                    }
+
+                    return {
+                        x: Math.round(g.stores / uniqueQtrs), 
+                        y: adjustedSales, 
+                        label: g.label + (isProjected ? '(보정)' : ''),
+                        sortKey: g.sortKey,
+                        year: g.year,
+                        isOpening: g.rawItems.some(r => r.year === oYear && r.qtr === oQtr),
+                        isPost: (g.year > oYear) || (g.year === oYear && g.qtr >= oQtr),
+                        lineName: line 
+                    };
+                }).sort((a,b) => a.sortKey - b.sortKey); 
+
+                if(aggData.length === 0) return;
+
+                const points = aggData.map((d, i) => ({
+                    x: d.x, y: d.y, raw: d, lineName: d.lineName, isStart: i === 0, isEnd: i === aggData.length - 1, isOpening: d.isOpening, isPost: d.isPost
+                }));
+
+                if(showRef) {
+                    const openPoint = points.find(p => p.isOpening);
+                    if(openPoint) {
+                        annotations[`lineV_${lineIdx}`] = {
+                            type: 'line', scaleID: 'x', value: openPoint.x, borderColor: lineColor, borderWidth: refLineWidth, borderDash: [4,4], label: { display: false }
+                        };
+                        annotations[`lineH_${lineIdx}`] = {
+                            type: 'line', scaleID: 'y', value: openPoint.y, borderColor: lineColor, borderWidth: refLineWidth, borderDash: [4,4], label: { display: false }
+                        };
+                    }
+                }
+
+                datasets.push({
+                    label: line,
+                    data: points,
+                    showLine: true,
+                    fill: false,
+                    borderWidth: lineWidth, 
+                    borderDash: borderDashArr,
+                    tension: 0.1,
+                    segment: { borderColor: ctx => ctx.p0.raw.isPost ? lineColor : preColor },
+                    pointBackgroundColor: ctx => {
+                        const p = ctx.raw;
+                        if(p.isStart) return lineColor; 
+                        if(p.isOpening) return lineColor; 
+                        if(p.isEnd) return '#ef4444';
+                        return '#fff';
+                    },
+                    pointBorderColor: ctx => {
+                        const p = ctx.raw;
+                        if(p.isStart || p.isEnd || p.isOpening) return '#fff';
+                        return p.isPost ? lineColor : preColor;
+                    },
+                    pointRadius: ctx => {
+                        const p = ctx.raw;
+                        if(p.isOpening) return starSize; 
+                        if(p.isEnd) return 6;
+                        return 3;
+                    },
+                    pointStyle: ctx => {
+                        const p = ctx.raw;
+                        if(p.isOpening) return 'star';
+                        if(p.isEnd) return 'triangle';
+                        return 'circle';
+                    },
+                    pointRotation: ctx => ctx.raw.isEnd ? 90 : 0,
+                    datalabels: {
+                        display: (ctx) => {
+                            const p = ctx.dataset.data[ctx.dataIndex];
+                            return p.isStart || p.isEnd || p.isOpening;
+                        },
+                        align: (ctx) => {
+                             const p = ctx.dataset.data[ctx.dataIndex];
+                             if(p.isEnd) return 'right';
+                             if(p.isOpening) return 'bottom'; 
+                             return 'top';
+                        },
+                        anchor: (ctx) => {
+                             const p = ctx.dataset.data[ctx.dataIndex];
+                             if(p.isEnd) return 'center';
+                             if(p.isOpening) return 'center'; 
+                             return 'end';
+                        },
+                        color: (ctx) => {
+                            const p = ctx.dataset.data[ctx.dataIndex];
+                            if(p.isStart) return lineColor; 
+                            if(p.isEnd) return lineColor; 
+                            if(p.isOpening) return '#b45309'; 
+                            return '#b45309';
+                        },
+                        font: (ctx) => { return { weight: 'bold', size: 11 }; },
+                        formatter: (val) => {
+                            if(val.isStart) return 'Start';
+                            if(val.isEnd) return `${val.lineName}`; 
+                            if(val.isOpening) return '개통'; 
+                            return '';
+                        },
+                        offset: 6
+                    }
+                });
+            });
+
+            renderTrajChart(datasets, annotations);
+        }
+
+        function renderTrajChart(datasets, annotations) {
+            const ctx = document.getElementById('trajChart').getContext('2d');
+            if(charts.traj) charts.traj.destroy();
+
+            charts.traj = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'bottom' },
+                        annotation: { annotations: annotations }, 
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const p = ctx.raw.raw; 
+                                    const label = ctx.dataset.label;
+                                    return `${label} (${p.label}): 가게 ${p.x.toLocaleString()}개, 매출 ${Math.round(p.y/1000000).toLocaleString()}백만`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: '평균 가게수 (Competition)' }, grid: { borderDash: [2,2] } },
+                        y: { title: { display: true, text: '총 매출액 (Market Size)' }, grid: { borderDash: [2,2] } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
